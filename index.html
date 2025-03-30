@@ -410,7 +410,11 @@
 
                 addDebugInfo(`פרטי בקשה: ${JSON.stringify(requestOptions.body)}`);
                 
-                fetch('https://api.anthropic.com/v1/messages', requestOptions)
+                // שימוש בפרוקסי CORS להתגברות על בעיות הרשאות
+                const proxyUrl = 'https://cors-anywhere.herokuapp.com/';
+                const targetUrl = 'https://api.anthropic.com/v1/messages';
+                
+                fetch(proxyUrl + targetUrl, requestOptions)
                     .then(response => {
                         addDebugInfo(`תשובה מהשרת: ${response.status} ${response.statusText}`);
                         
