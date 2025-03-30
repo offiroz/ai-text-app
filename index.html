@@ -1,0 +1,661 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Text - ממשק שיחה קולית עם Claude</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f8f9fa;
+            direction: rtl;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background-color: white;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            padding: 20px;
+        }
+        h1 {
+            color: #2c3e50;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        .settings-panel {
+            background-color: #f1f3f5;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        .control-panel {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        button {
+            padding: 10px 15px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: background-color 0.3s;
+        }
+        #startRecording {
+            background-color: #4caf50;
+            color: white;
+        }
+        #stopRecording {
+            background-color: #f44336;
+            color: white;
+        }
+        #pauseSystem {
+            background-color: #2196f3;
+            color: white;
+        }
+        button:hover {
+            opacity: 0.9;
+        }
+        button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+            opacity: 0.7;
+        }
+        #status {
+            text-align: center;
+            margin-bottom: 15px;
+            padding: 10px;
+            background-color: #e2e8f0;
+            border-radius: 5px;
+            font-weight: bold;
+        }
+        #chatContainer {
+            height: 300px;
+            overflow-y: auto;
+            border: 1px solid #ddd;
+            padding: 10px;
+            border-radius: 5px;
+            background-color: #f9f9f9;
+            margin-bottom: 20px;
+        }
+        .message {
+            margin-bottom: 10px;
+            padding: 8px 12px;
+            border-radius: 5px;
+            max-width: 80%;
+            word-wrap: break-word;
+        }
+        .user-message {
+            background-color: #e3f2fd;
+            margin-left: auto;
+        }
+        .assistant-message {
+            background-color: #e8f5e9;
+            margin-right: auto;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        input[type="text"], select {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 16px;
+        }
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        .checkbox-group label {
+            margin-bottom: 0;
+            margin-right: 10px;
+        }
+        #recordingWave {
+            height: 40px;
+            background: linear-gradient(90deg, #4caf50, #8bc34a);
+            border-radius: 5px;
+            margin-bottom: 15px;
+            position: relative;
+            overflow: hidden;
+        }
+        #recordingWave::before {
+            content: "";
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: repeating-linear-gradient(
+                90deg,
+                transparent,
+                transparent 10px,
+                rgba(255, 255, 255, 0.5) 10px,
+                rgba(255, 255, 255, 0.5) 20px
+            );
+            animation: wave 2s linear infinite;
+        }
+        @keyframes wave {
+            0% { background-position: 0 0; }
+            100% { background-position: 40px 0; }
+        }
+        .hidden {
+            display: none;
+        }
+        #debugInfo {
+            height: 150px;
+            overflow-y: auto;
+            border: 1px solid #ddd;
+            padding: 10px;
+            background-color: #f5f5f5;
+            font-family: monospace;
+            font-size: 12px;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>AI Text - ממשק שיחה קולית עם Claude</h1>
+        
+        <div class="settings-panel">
+            <div class="form-group">
+                <label for="apiKey">מפתח API של Claude:</label>
+                <input type="text" id="apiKey" placeholder="הזן את מפתח ה-API של Claude" />
+            </div>
+            
+            <div class="form-group">
+                <label for="modelSelect">בחר מודל:</label>
+                <select id="modelSelect">
+                    <option value="claude-3-opus-20240229">Claude 3 Opus</option>
+                    <option value="claude-3-sonnet-20240229" selected>Claude 3 Sonnet</option>
+                    <option value="claude-3-haiku-20240307">Claude 3 Haiku</option>
+                    <option value="claude-3-5-sonnet-20240620">Claude 3.5 Sonnet</option>
+                    <option value="claude-3-7-sonnet-20250219">Claude 3.7 Sonnet</option>
+                </select>
+            </div>
+            
+            <div class="form-group">
+                <label for="voiceSelect">בחר קול:</label>
+                <select id="voiceSelect">
+                    <option value="default">קול ברירת מחדל</option>
+                    <!-- קולות יתווספו דינמית דרך JavaScript -->
+                </select>
+            </div>
+            
+            <div class="checkbox-group">
+                <input type="checkbox" id="continuousMode" checked />
+                <label for="continuousMode">מצב רציף</label>
+            </div>
+            
+            <div class="checkbox-group">
+                <input type="checkbox" id="silenceDetection" checked />
+                <label for="silenceDetection">זיהוי שקט אוטומטי</label>
+            </div>
+            
+            <div class="checkbox-group">
+                <input type="checkbox" id="debugMode" />
+                <label for="debugMode">מצב דיבוג</label>
+            </div>
+        </div>
+        
+        <div id="recordingWave" class="hidden"></div>
+        
+        <div id="status">מוכן להתחלה</div>
+        
+        <div class="control-panel">
+            <button id="startRecording">התחל הקלטה</button>
+            <button id="stopRecording" disabled>עצור הקלטה</button>
+            <button id="pauseSystem" disabled>השהה את המערכת</button>
+        </div>
+        
+        <div id="chatContainer"></div>
+        
+        <div id="debugInfo" class="hidden"></div>
+    </div>
+
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // אלמנטים בדף
+        const startButton = document.getElementById('startRecording');
+        const stopButton = document.getElementById('stopRecording');
+        const pauseButton = document.getElementById('pauseSystem');
+        const statusElement = document.getElementById('status');
+        const chatContainer = document.getElementById('chatContainer');
+        const apiKeyInput = document.getElementById('apiKey');
+        const modelSelect = document.getElementById('modelSelect');
+        const voiceSelect = document.getElementById('voiceSelect');
+        const recordingWave = document.getElementById('recordingWave');
+        const continuousModeCheckbox = document.getElementById('continuousMode');
+        const silenceDetectionCheckbox = document.getElementById('silenceDetection');
+        const debugModeCheckbox = document.getElementById('debugMode');
+        const debugInfoElement = document.getElementById('debugInfo');
+
+        // הוספת טיפול באירועי דיבוג
+        debugModeCheckbox.addEventListener('change', function() {
+            if (debugModeCheckbox.checked) {
+                debugInfoElement.classList.remove('hidden');
+            } else {
+                debugInfoElement.classList.add('hidden');
+            }
+        });
+
+        // פונקציית עזר להוספת מידע דיבוג
+        function addDebugInfo(text) {
+            if (debugModeCheckbox.checked) {
+                const debugLine = document.createElement('div');
+                debugLine.textContent = new Date().toLocaleTimeString() + ': ' + text;
+                debugInfoElement.appendChild(debugLine);
+                debugInfoElement.scrollTop = debugInfoElement.scrollHeight;
+            }
+            // תמיד שמור גם בקונסול
+            console.log(text);
+        }
+
+        // משתנים גלובליים
+        let recognizedText = '';
+        let silenceTimer = null;
+        let lastSpeechTime = Date.now();
+        let systemActive = false;
+        let recognition = null;
+        let hasRecordingPermission = false;
+        // אתחול רשימת הקולות הזמינים
+        function populateVoiceList() {
+            try {
+                const voices = window.speechSynthesis.getVoices();
+                
+                addDebugInfo(`נמצאו ${voices.length} קולות זמינים`);
+                
+                if (voices && voices.length > 0) {
+                    // נקה את הרשימה הקיימת
+                    while (voiceSelect.firstChild) {
+                        voiceSelect.removeChild(voiceSelect.firstChild);
+                    }
+                    
+                    // הוסף אפשרות ברירת מחדל
+                    const defaultOption = document.createElement('option');
+                    defaultOption.textContent = 'קול ברירת מחדל';
+                    defaultOption.value = 'default';
+                    voiceSelect.appendChild(defaultOption);
+                    
+                    // סנן קולות בעברית או דוברי עברית
+                    const hebrewVoices = voices.filter(voice => 
+                        voice.lang && (voice.lang.includes('he') || voice.lang.includes('iw')));
+                    
+                    addDebugInfo(`נמצאו ${hebrewVoices.length} קולות בעברית`);
+                    
+                    // אם אין קולות בעברית, השתמש בכל הקולות
+                    const voicesToUse = hebrewVoices.length > 0 ? hebrewVoices : voices;
+                    
+                    // הוסף את הקולות לרשימה
+                    voicesToUse.forEach((voice, index) => {
+                        const option = document.createElement('option');
+                        option.textContent = `${voice.name} (${voice.lang || 'ללא שפה'})`;
+                        option.value = index.toString();
+                        voiceSelect.appendChild(option);
+                    });
+                } else {
+                    addDebugInfo('לא נמצאו קולות זמינים');
+                }
+            } catch (error) {
+                addDebugInfo(`שגיאה בטעינת קולות: ${error.message}`);
+            }
+        }
+
+        // ניסיון לטעון את הקולות
+        try {
+            // מטען ראשוני
+            populateVoiceList();
+            
+            // נסה לטעון שוב כשהקולות זמינים
+            if (window.speechSynthesis.onvoiceschanged !== undefined) {
+                window.speechSynthesis.onvoiceschanged = populateVoiceList;
+            }
+        } catch (error) {
+            addDebugInfo(`שגיאה באתחול קולות: ${error.message}`);
+        }
+
+        // פונקציה להוספת הודעה לצ'אט
+        function addMessageToChat(text, isUser) {
+            const messageDiv = document.createElement('div');
+            messageDiv.classList.add('message');
+            messageDiv.classList.add(isUser ? 'user-message' : 'assistant-message');
+            messageDiv.textContent = text;
+            chatContainer.appendChild(messageDiv);
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+        }
+
+        // פונקציה להמרת טקסט לדיבור
+        function speakText(text) {
+            return new Promise((resolve) => {
+                try {
+                    const utterance = new SpeechSynthesisUtterance(text);
+                    
+                    // נסה להגדיר קול אם נבחר
+                    if (voiceSelect.value !== 'default') {
+                        try {
+                            const voices = window.speechSynthesis.getVoices();
+                            const selectedIndex = parseInt(voiceSelect.value);
+                            
+                            if (!isNaN(selectedIndex) && selectedIndex >= 0 && selectedIndex < voices.length) {
+                                utterance.voice = voices[selectedIndex];
+                                addDebugInfo(`נבחר קול: ${utterance.voice.name}`);
+                            }
+                        } catch (e) {
+                            addDebugInfo(`שגיאה בבחירת קול: ${e.message}`);
+                        }
+                    }
+
+                    utterance.lang = 'he-IL';
+                    utterance.rate = 1.0;
+                    utterance.pitch = 1.0;
+
+                    utterance.onend = function() {
+                        resolve();
+                    };
+
+                    // מקרה חירום במקרה שהדיבור נתקע
+                    setTimeout(() => resolve(), 30000);
+
+                    speechSynthesis.speak(utterance);
+                    addDebugInfo(`מקריא טקסט באורך ${text.length} תווים`);
+                } catch (error) {
+                    addDebugInfo(`שגיאה בהמרת טקסט לדיבור: ${error.message}`);
+                    resolve(); // ממשיך הלאה גם במקרה של שגיאה
+                }
+            });
+        }
+        // פונקציה לשליחת בקשה ל-API של Claude
+        function callClaudeAPI(text) {
+            return new Promise((resolve, reject) => {
+                const apiKey = apiKeyInput.value.trim();
+                const selectedModel = modelSelect.value;
+                
+                if (!apiKey) {
+                    statusElement.textContent = 'שגיאה: נדרש מפתח API';
+                    reject(new Error('נדרש מפתח API'));
+                    return;
+                }
+
+                statusElement.textContent = 'מעבד את השאלה...';
+                addDebugInfo(`שולח בקשה למודל ${selectedModel}`);
+                
+                const requestOptions = {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${apiKey}`
+                    },
+                    body: JSON.stringify({
+                        model: selectedModel,
+                        max_tokens: 1024,
+                        messages: [
+                            {
+                                role: 'user',
+                                content: text
+                            }
+                        ]
+                    })
+                };
+
+                addDebugInfo(`פרטי בקשה: ${JSON.stringify(requestOptions.body)}`);
+                
+                fetch('https://api.anthropic.com/v1/messages', requestOptions)
+                    .then(response => {
+                        addDebugInfo(`תשובה מהשרת: ${response.status} ${response.statusText}`);
+                        
+                        if (!response.ok) {
+                            return response.text().then(errorText => {
+                                try {
+                                    const errorData = JSON.parse(errorText);
+                                    throw new Error(`${response.status}: ${errorData.error?.message || 'שגיאה לא ידועה'}`);
+                                } catch (e) {
+                                    throw new Error(`${response.status}: ${errorText || response.statusText}`);
+                                }
+                            });
+                        }
+                        
+                        return response.json();
+                    })
+                    .then(data => {
+                        addDebugInfo(`התקבלה תשובה תקינה`);
+                        
+                        if (data && data.content && Array.isArray(data.content) && data.content.length > 0) {
+                            resolve(data.content[0].text);
+                        } else {
+                            addDebugInfo(`מבנה תשובה לא תקין: ${JSON.stringify(data)}`);
+                            throw new Error('תשובת API לא תקינה');
+                        }
+                    })
+                    .catch(error => {
+                        addDebugInfo(`שגיאה בבקשת API: ${error.message}`);
+                        statusElement.textContent = `שגיאת API: ${error.message}`;
+                        reject(error);
+                    });
+            });
+        }
+
+        // בדיקת תמיכה בזיהוי דיבור
+        function checkSpeechRecognitionSupport() {
+            return 'SpeechRecognition' in window || 'webkitSpeechRecognition' in window;
+        }
+
+        // בקשת אישור למיקרופון
+        function requestMicrophonePermission() {
+            return navigator.mediaDevices.getUserMedia({ audio: true })
+                .then(stream => {
+                    hasRecordingPermission = true;
+                    addDebugInfo('התקבלה גישה למיקרופון');
+                    return true;
+                })
+                .catch(error => {
+                    statusElement.textContent = 'שגיאה: לא ניתן לגשת למיקרופון. ' + error.message;
+                    addDebugInfo(`שגיאת גישה למיקרופון: ${error.message}`);
+                    return false;
+                });
+        }
+
+        // בדיקת שקט (אם אין דיבור למשך זמן מוגדר)
+        function checkSilence() {
+            const now = Date.now();
+            if (now - lastSpeechTime > 4000 && silenceDetectionCheckbox.checked) {
+                clearInterval(silenceTimer);
+                silenceTimer = null;
+                addDebugInfo('זוהה שקט, מפסיק הקלטה');
+                stopRecordingAndProcess();
+            }
+        }
+        // התחלת הקלטה
+        function startRecording() {
+            if (!checkSpeechRecognitionSupport()) {
+                statusElement.textContent = 'דפדפן זה אינו תומך בזיהוי דיבור';
+                addDebugInfo('הדפדפן אינו תומך בזיהוי דיבור');
+                return;
+            }
+
+            systemActive = true;
+            pauseButton.disabled = false;
+
+            // בקש אישור מיקרופון אם צריך
+            if (!hasRecordingPermission) {
+                addDebugInfo('מבקש הרשאות מיקרופון');
+                requestMicrophonePermission().then(granted => {
+                    if (granted) {
+                        initializeRecognition();
+                    }
+                });
+            } else {
+                initializeRecognition();
+            }
+        }
+
+        // אתחול מנוע זיהוי הדיבור
+        function initializeRecognition() {
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            recognition = new SpeechRecognition();
+
+            recognition.lang = 'he-IL';
+            recognition.interimResults = true;
+            recognition.continuous = true;
+
+            recognition.onstart = function() {
+                statusElement.textContent = 'מקשיב...';
+                startButton.disabled = true;
+                stopButton.disabled = false;
+                recordingWave.classList.remove('hidden');
+                recognizedText = '';
+                lastSpeechTime = Date.now();
+                addDebugInfo('התחלת הקלטה');
+
+                // התחל בדיקת שקט
+                if (silenceDetectionCheckbox.checked && !silenceTimer) {
+                    silenceTimer = setInterval(checkSilence, 500);
+                }
+            };
+
+            recognition.onresult = function(event) {
+                lastSpeechTime = Date.now();
+                
+                let interimTranscript = '';
+                for (let i = event.resultIndex; i < event.results.length; i++) {
+                    if (event.results[i].isFinal) {
+                        recognizedText += event.results[i][0].transcript + ' ';
+                        addDebugInfo(`טקסט סופי זוהה: "${event.results[i][0].transcript}"`);
+                    } else {
+                        interimTranscript += event.results[i][0].transcript;
+                    }
+                }
+                
+                statusElement.textContent = 'מקשיב: ' + recognizedText + interimTranscript;
+            };
+
+            recognition.onend = function() {
+                addDebugInfo('סיום הקלטה');
+                // אל תאפס את recognizedText כאן!
+            };
+
+            try {
+                recognition.start();
+            } catch (error) {
+                addDebugInfo(`שגיאה בהתחלת הקלטה: ${error.message}`);
+                statusElement.textContent = 'שגיאה בהתחלת הקלטה: ' + error.message;
+            }
+        }
+
+        // עצירת הקלטה ועיבוד התוכן
+        function stopRecordingAndProcess() {
+            if (silenceTimer) {
+                clearInterval(silenceTimer);
+                silenceTimer = null;
+            }
+
+            if (recognition) {
+                recognition.stop();
+                recognition = null;
+
+                startButton.disabled = false;
+                stopButton.disabled = true;
+                recordingWave.classList.add('hidden');
+
+                // שמור את הטקסט המזוהה בזמן עצירת ההקלטה
+                const currentText = recognizedText.trim();
+                addDebugInfo(`טקסט שזוהה בסיום: "${currentText}"`);
+
+                if (currentText) {
+                    const textToProcess = currentText;
+                    
+                    // הוסף את הטקסט לצ'אט
+                    addMessageToChat(textToProcess, true);
+                    addDebugInfo(`מעבד טקסט: "${textToProcess}"`);
+                    
+                    // שלח לקלוד
+                    callClaudeAPI(textToProcess)
+                        .then(response => {
+                            // הוסף את התשובה לצ'אט
+                            addMessageToChat(response, false);
+                            addDebugInfo(`התקבלה תשובה באורך ${response.length} תווים`);
+                            
+                            // הקרא את התשובה
+                            statusElement.textContent = 'משמיע תשובה...';
+                            return speakText(response);
+                        })
+                        .then(() => {
+                            // התחל להקליט שוב אם במצב רציף
+                            if (continuousModeCheckbox.checked && systemActive) {
+                                statusElement.textContent = 'מוכן להקלטה חדשה, מתחיל בהקשבה...';
+                                addDebugInfo('מתחיל הקלטה חדשה במצב רציף');
+                                // נקה את הטקסט המזוהה לפני התחלת הקלטה חדשה
+                                recognizedText = '';
+                                setTimeout(startRecording, 500);
+                            } else {
+                                statusElement.textContent = 'מוכן להקלטה חדשה';
+                            }
+                        })
+                        .catch(error => {
+                            console.error('Error:', error);
+                            statusElement.textContent = 'אירעה שגיאה: ' + error.message;
+                            addDebugInfo(`שגיאה בעיבוד: ${error.message}`);
+                            // אם יש שגיאה, אל תתחיל הקלטה חדשה אוטומטית
+                        });
+                } else {
+                    statusElement.textContent = 'לא זוהה דיבור, נסה שוב';
+                    addDebugInfo('לא זוהה דיבור');
+                    
+                    if (continuousModeCheckbox.checked && systemActive) {
+                        // נקה את הטקסט המזוהה לפני התחלת הקלטה חדשה
+                        recognizedText = '';
+                        setTimeout(startRecording, 500);
+                    }
+                }
+            }
+        }
+        // הגדרת מאזינים לאירועים
+        startButton.addEventListener('click', startRecording);
+        
+        stopButton.addEventListener('click', stopRecordingAndProcess);
+        
+        pauseButton.addEventListener('click', function() {
+            if (systemActive) {
+                // השהה
+                systemActive = false;
+                pauseButton.textContent = 'המשך את המערכת';
+                
+                if (recognition) {
+                    if (silenceTimer) {
+                        clearInterval(silenceTimer);
+                        silenceTimer = null;
+                    }
+                    recognition.stop();
+                    recognition = null;
+                }
+                
+                startButton.disabled = false;
+                stopButton.disabled = true;
+                recordingWave.classList.add('hidden');
+                statusElement.textContent = 'המערכת מושהית';
+                addDebugInfo('המערכת הושהתה');
+            } else {
+                // המשך
+                systemActive = true;
+                pauseButton.textContent = 'השהה את המערכת';
+                statusElement.textContent = 'ממשיך...';
+                addDebugInfo('ממשיך פעילות מערכת');
+                startRecording();
+            }
+        });
+        
+        addDebugInfo('המערכת נטענה והיא מוכנה לשימוש');
+    });
+    </script>
+</body>
+</html>
