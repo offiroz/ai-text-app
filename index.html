@@ -375,79 +375,77 @@
                 }
             });
         }
-        // פונקציה לשליחת בקשה ל-API של Claude
-        function callClaudeAPI(text) {
-            return new Promise((resolve, reject) => {
-                const apiKey = apiKeyInput.value.trim();
-                const selectedModel = modelSelect.value;
-                
-                if (!apiKey) {
-                    statusElement.textContent = 'שגיאה: נדרש מפתח API';
-                    reject(new Error('נדרש מפתח API'));
-                    return;
-                }
+        // פונקציה לשליחת בקשה ל-API של Claude (תואמת cURL)
+            function callClaudeAPI(text) {
+                return new Promise((resolve, reject) => {
+                    const apiKey = apiKeyInput.value.trim();
+                    const selectedModel = modelSelect.value;
+                    
+                    if (!apiKey) {
+                        statusElement.textContent = 'שגיאה: נדרש מפתח API';
+                        reject(new Error('נדרש מפתח API'));
+                        return;
+                    }
 
-                statusElement.textContent = 'מעבד את השאלה...';
-                addDebugInfo(`שולח בקשה למודל ${selectedModel}`);
-                
-                const requestOptions = {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${apiKey}`
-                    },
-                    body: JSON.stringify({
-                        model: selectedModel,
-                        max_tokens: 1024,
-                        messages: [
-                            {
-                                role: 'user',
-                                content: text
-                            }
-                        ]
-                    })
-                };
-
-                addDebugInfo(`פרטי בקשה: ${JSON.stringify(requestOptions.body)}`);
-                
-                // שימוש בפרוקסי CORS להתגברות על בעיות הרשאות
-                const proxyUrl = 'https://cors-anywhere.herokuapp.com/';
-                const targetUrl = 'https://api.anthropic.com/v1/messages';
-                
-                fetch(proxyUrl + targetUrl, requestOptions)
-                    .then(response => {
-                        addDebugInfo(`תשובה מהשרת: ${response.status} ${response.statusText}`);
-                        
-                        if (!response.ok) {
-                            return response.text().then(errorText => {
-                                try {
-                                    const errorData = JSON.parse(errorText);
-                                    throw new Error(`${response.status}: ${errorData.error?.message || 'שגיאה לא ידועה'}`);
-                                } catch (e) {
-                                    throw new Error(`${response.status}: ${errorText || response.statusText}`);
+                    statusElement.textContent = 'מעבד את השאלה...';
+                    addDebugInfo(`שולח בקשה למודל ${selectedModel}`);
+                    
+                    // זהו המבנה המדויק שתואם את פורמט ה-cURL של Anthropic
+                    const requestOptions = {
+                        method: 'POST',
+                        headers: {
+                            'anthropic-version': '2023-06-01',
+                            'content-type': 'application/json',
+                            'x-api-key': apiKey
+                        },
+                        body: JSON.stringify({
+                            model: selectedModel,
+                            max_tokens: 1024,
+                            messages: [
+                                {
+                                    role: 'user',
+                                    content: text
                                 }
-                            });
-                        }
-                        
-                        return response.json();
-                    })
-                    .then(data => {
-                        addDebugInfo(`התקבלה תשובה תקינה`);
-                        
-                        if (data && data.content && Array.isArray(data.content) && data.content.length > 0) {
-                            resolve(data.content[0].text);
-                        } else {
-                            addDebugInfo(`מבנה תשובה לא תקין: ${JSON.stringify(data)}`);
-                            throw new Error('תשובת API לא תקינה');
-                        }
-                    })
-                    .catch(error => {
-                        addDebugInfo(`שגיאה בבקשת API: ${error.message}`);
-                        statusElement.textContent = `שגיאת API: ${error.message}`;
-                        reject(error);
-                    });
-            });
-        }
+                            ]
+                        })
+                    };
+
+                    addDebugInfo(`פרטי בקשה: ${JSON.stringify({...requestOptions, headers: requestOptions.headers})}`);
+                    
+                    fetch('https://api.anthropic.com/v1/messages', requestOptions)
+                        .then(response => {
+                            addDebugInfo(`תשובה מהשרת: ${response.status} ${response.statusText}`);
+                            
+                            if (!response.ok) {
+                                return response.text().then(errorText => {
+                                    try {
+                                        const errorData = JSON.parse(errorText);
+                                        throw new Error(`${response.status}: ${errorData.error?.message || 'שגיאה לא ידועה'}`);
+                                    } catch (e) {
+                                        throw new Error(`${response.status}: ${errorText || response.statusText}`);
+                                    }
+                                });
+                            }
+                            
+                            return response.json();
+                        })
+                        .then(data => {
+                            addDebugInfo(`התקבלה תשובה תקינה`);
+                            
+                            if (data && data.content && Array.isArray(data.content) && data.content.length > 0) {
+                                resolve(data.content[0].text);
+                            } else {
+                                addDebugInfo(`מבנה תשובה לא תקין: ${JSON.stringify(data)}`);
+                                throw new Error('תשובת API לא תקינה');
+                            }
+                        })
+                        .catch(error => {
+                            addDebugInfo(`שגיאה בבקשת API: ${error.message}`);
+                            statusElement.textContent = `שגיאת API: ${error.message}`;
+                            reject(error);
+                        });
+                });
+            }
 
         // בדיקת תמיכה בזיהוי דיבור
         function checkSpeechRecognitionSupport() {
